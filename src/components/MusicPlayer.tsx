@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Play,
@@ -17,8 +17,58 @@ type PlayerState = "playing" | "paused" | "loading";
 
 export function MusicPlayer() {
   const [state, setState] = useState<PlayerState>("paused");
+  const [volume, setVolume] = useState(0.7); // Default volume 70%
 
-  // Variasi Animasi (Sesuai Requirement)
+  // Ref untuk menyimpan objek Audio
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Inisialisasi Audio (Ganti URL dengan file mp3 kamu)
+  useEffect(() => {
+    audioRef.current = new Audio(
+      "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    );
+    audioRef.current.volume = volume;
+
+    // Bersihkan saat komponen tidak lagi digunakan
+    return () => {
+      audioRef.current?.pause();
+      audioRef.current = null;
+    };
+  }, []);
+
+  // Sinkronisasi State UI dengan Suara
+  useEffect(() => {
+    if (!audioRef.current) return;
+
+    if (state === "playing") {
+      audioRef.current
+        .play()
+        .catch((err) => console.error("Playback failed:", err));
+    } else if (state === "paused") {
+      audioRef.current.pause();
+    }
+  }, [state]);
+
+  // Handler Volume
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVol = parseFloat(e.target.value);
+    setVolume(newVol);
+    if (audioRef.current) audioRef.current.volume = newVol;
+  };
+
+  // Handler Play/Pause dengan Sequence 500ms (Sesuai Requirement)
+  const handleTogglePlay = () => {
+    if (state === "loading") return;
+
+    const nextState = state === "playing" ? "paused" : "playing";
+    setState("loading");
+
+    setTimeout(() => {
+      setState(nextState);
+    }, 500);
+  };
+
+  // --- Animation Variants (Tetap seperti sebelumnya) ---
   const containerVariants = {
     paused: {
       backgroundColor: "#121212",
@@ -33,63 +83,55 @@ export function MusicPlayer() {
 
   const artworkVariants = {
     playing: {
-      scale: 1,
       rotate: 360,
       transition: {
         rotate: { repeat: Infinity, duration: 20, ease: "linear" },
-        scale: { type: "spring" },
       },
     },
-    paused: { scale: 0.95, rotate: 0 },
-    loading: { scale: 0.9 },
-  };
-
-  const barVariants = {
-    playing: (i: number) => ({
-      height: ["4px", "20px", "4px"],
-      transition: { repeat: Infinity, duration: 0.5, delay: i * 0.1 },
-    }),
-    paused: { height: "4px" },
-    loading: { height: "10px", opacity: 0.5 },
-  };
-
-  const handleTogglePlay = () => {
-    if (state === "loading") return;
-    const next = state === "playing" ? "paused" : "playing";
-    setState("loading");
-    setTimeout(() => setState(next), 500); // Sequence 500ms sesuai requirement
+    paused: { rotate: 0 },
+    loading: { scale: 0.95 },
   };
 
   return (
     <motion.div
       variants={containerVariants}
       animate={state}
-      className="w-125 h-87.5 p-6 rounded-3xl flex flex-col justify-between text-white"
+      className="w-125 h-87.5 p-6 rounded-3xl flex flex-col justify-between text-white shadow-2xl"
     >
-      {/* Top Section: Artwork & Info */}
+      {/* Header: Artwork & Info */}
       <div className="flex flex-row gap-6 items-start">
         <motion.div
           variants={artworkVariants}
           animate={state}
-          className="w-30 h-30 flex-none rounded-2xl bg-linear-to-br from-[#A855F7] to-[#EC4899] flex items-center justify-center shadow-2xl"
+          className="w-30 h-30 flex-none rounded-2xl bg-linear-to-br from-[#A855F7] to-[#EC4899] flex items-center justify-center"
         >
           <Music size={48} color="white" />
         </motion.div>
 
         <div className="flex flex-col gap-2 pt-2">
-          <h2 className="text-[24px] font-bold leading-none">
-            Awesome Song Title
-          </h2>
+          <h2 className="text-[24px] font-bold">Awesome Song Title</h2>
           <p className="text-[16px] text-gray-400">Amazing Artist</p>
 
-          {/* Equalizer Bars */}
+          {/* Equalizer - 5 Bar yang hanya bergerak saat 'playing' */}
           <div className="flex items-end gap-1 h-6 mt-3">
             {[0, 1, 2, 3, 4].map((i) => (
               <motion.div
                 key={i}
-                custom={i}
-                variants={barVariants}
-                animate={state}
+                // Animasi tinggi hanya aktif jika state === 'playing'
+                animate={{
+                  height: state === "playing" ? ["4px", "20px", "4px"] : "4px",
+                }}
+                // Transisi repeat: Infinity hanya aktif jika state === 'playing'
+                transition={
+                  state === "playing"
+                    ? {
+                        repeat: Infinity,
+                        duration: 0.5,
+                        delay: i * 0.1,
+                        ease: "easeInOut",
+                      }
+                    : { duration: 0.3 } // Transisi halus saat berhenti ke 4px
+                }
                 className="w-1.5 bg-[#8B5CF6] rounded-full"
               />
             ))}
@@ -97,7 +139,7 @@ export function MusicPlayer() {
         </div>
       </div>
 
-      {/* Progress Section */}
+      {/* Progress (Visual Only) */}
       <div className="flex flex-col gap-2">
         <div className="h-1.5 w-full bg-[#262626] rounded-full overflow-hidden">
           <motion.div
@@ -105,13 +147,13 @@ export function MusicPlayer() {
             className="h-full bg-[#8B5CF6]"
           />
         </div>
-        <div className="flex justify-between text-[12px] text-gray-500 font-medium">
+        <div className="flex justify-between text-[12px] text-gray-500">
           <span>1:23</span>
           <span>3:45</span>
         </div>
       </div>
 
-      {/* Controls Section */}
+      {/* Controls */}
       <div className="flex items-center justify-center gap-8">
         <Shuffle
           size={20}
@@ -123,8 +165,8 @@ export function MusicPlayer() {
         />
 
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={handleTogglePlay}
           className={`w-16 h-16 rounded-full flex items-center justify-center ${
             state === "loading" ? "bg-gray-700" : "bg-[#8B5CF6]"
@@ -153,12 +195,18 @@ export function MusicPlayer() {
         />
       </div>
 
-      {/* Volume Section */}
+      {/* Volume - Sekarang benar-benar berfungsi! */}
       <div className="flex items-center gap-3 px-2">
         <Volume2 size={18} className="text-gray-500" />
-        <div className="h-1 flex-1 bg-[#262626] rounded-full">
-          <div className="h-full w-[60%] bg-gray-500 rounded-full" />
-        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={volume}
+          onChange={handleVolumeChange}
+          className="w-full h-1 bg-[#262626] rounded-full appearance-none cursor-pointer accent-[#8B5CF6]"
+        />
       </div>
     </motion.div>
   );
